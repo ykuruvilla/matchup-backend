@@ -1,24 +1,53 @@
 require("dotenv").config();
 const User = require("./models/users");
 const cors = require("cors");
-
+const http = require("http");
 const { response } = require("express");
+const { Server } = require("socket.io");
 const express = require("express");
 const userRouter = require("./routes/userRoutes");
 const app = express();
 const mongoose = require("mongoose");
 const username = process.env.USERNAME;
 const password = process.env.PASSWORD;
+
 app.use(express.urlencoded({ extended: true }));
 
 app.use(cors());
+
+const server = http.createServer(app);
+const PORT = process.env.PORT || 8080;
+
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log(`User connected ${socket.id}`);
+
+  socket.on("joinRoom", (roomId) => {
+    socket.join(roomId);
+    console.log(`User with ID ${socket.id} joined room ${roomId}`);
+  });
+
+  socket.on("sendMessage", (messageData) => {
+    socket.to(messageData.room).emit("receiveMessage", messageData);
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`User disconnected ${socket.id}`);
+  });
+});
 
 const dbURI = `mongodb+srv://${username}:${password}@capstone.fvxt5.mongodb.net/?retryWrites=true&w=majority`;
 
 mongoose
   .connect(dbURI)
   .then((response) => {
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
   })
@@ -28,44 +57,8 @@ mongoose
 
 app.use(express.json());
 
-const PORT = process.env.PORT || 8080;
-
 app.get("/", (_request, response) => {
   response.status(200).send("<h1>Hello there!</h1>");
 });
 
 app.use("/users", userRouter);
-
-app.get("/add-user", (req, res) => {
-  const newUser = new User({
-    firstName: "Jack",
-    lastName: "Wills",
-    email: "jackwills@test.com",
-    postcode: "sw82xs",
-    tennis: true,
-    squash: true,
-    badminton: false,
-    tableTennis: false,
-    bowling: false,
-    golf: true,
-  });
-
-  user
-    .save()
-    .then((result) => {
-      res.send(result);
-    })
-    .catch((err) => {
-      console.log(err);
-    });
-});
-
-// app.get("/all-users", (req, res) => {
-//   User.find()
-//     .then((result) => {
-//       res.send(result);
-//     })
-//     .catch((err) => {
-//       console.log(err);
-//     });
-// });
